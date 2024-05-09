@@ -1,5 +1,4 @@
 package Third;
-
 import javax.swing.*;
 import java.awt.*;
 import java.io.BufferedReader;
@@ -7,10 +6,13 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.*;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.RSAPublicKeySpec;
 import java.util.Base64;
-import java.math.BigInteger;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
+import java.math.BigInteger; // Import added
+
 
 public class ThirdApplication extends JFrame {
     private JTextField publicKeyField, messageField, signatureField;
@@ -61,14 +63,17 @@ public class ThirdApplication extends JFrame {
                          BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()))) {
                         String publicKey = reader.readLine();
                         String message = reader.readLine();
-                        String signature = reader.readLine();
+
+                        // Read signature as Base64 encoded string
+                        String signatureBase64 = reader.readLine();
+                        byte[] signatureBytes = Base64.getDecoder().decode(signatureBase64);
 
                         SwingUtilities.invokeLater(() -> {
                             publicKeyField.setText(publicKey);
                             messageField.setText(message);
-                            signatureField.setText(signature);
+                            signatureField.setText(signatureBase64);
 
-                            boolean isValid = validateSignature(publicKey, message, signature);
+                            boolean isValid = validateSignature(publicKey, message, signatureBytes);
                             validationResultLabel.setText("Signature Valid: " + isValid);
                         });
                     } catch (IOException e) {
@@ -84,25 +89,39 @@ public class ThirdApplication extends JFrame {
         serverThread.start();
     }
 
-    private static boolean validateSignature(String publicKey, String message, String signatureBase64) {
+    private static boolean validateSignature(String publicKey, String message, byte[] signatureBytes) {
         try {
+            System.out.println("Received public key: " + publicKey);
+            System.out.println("Received message: " + message);
+            System.out.println("Received signature bytes: " + Arrays.toString(signatureBytes));
+
+            // Split the publicKey into e and n
             String[] parts = publicKey.split(",");
+            if (parts.length != 2) {
+                return false; // Invalid publicKey format, return false
+            }
             BigInteger e = new BigInteger(parts[0]);
             BigInteger n = new BigInteger(parts[1]);
 
-            byte[] signatureBytes = Base64.getDecoder().decode(signatureBase64);
-            BigInteger signatureBigInteger = new BigInteger(signatureBytes);
+            // Create RSAPublicKeySpec
+            RSAPublicKeySpec keySpec = new RSAPublicKeySpec(n, e);
 
-            BigInteger decryptedSignature = signatureBigInteger.modPow(e, n);
+            // Generate PublicKey from keySpec
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            PublicKey rsaPublicKey = keyFactory.generatePublic(keySpec);
 
-            byte[] decryptedSignatureBytes = decryptedSignature.toByteArray();
+            // Initialize Signature object with PublicKey
+            Signature signature = Signature.getInstance("SHA256withRSA");
+            signature.initVerify(rsaPublicKey);
 
-            byte[] messageBytes = message.getBytes();
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] messageHash = digest.digest(messageBytes);
+            // Update Signature object with the message
+            signature.update(message.getBytes());
 
-            return MessageDigest.isEqual(decryptedSignatureBytes, messageHash);
-        } catch (NoSuchAlgorithmException | IllegalArgumentException ex) {
+            // Verify the signature
+            boolean isValid = signature.verify(signatureBytes);
+            System.out.println("Signature Valid: " + isValid);
+            return isValid;
+        } catch (NoSuchAlgorithmException | InvalidKeySpecException | SignatureException | InvalidKeyException ex) {
             ex.printStackTrace();
             return false;
         }

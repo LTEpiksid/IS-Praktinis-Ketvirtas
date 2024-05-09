@@ -3,8 +3,8 @@ package Second;
 import javax.swing.*;
 import java.awt.*;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.net.Socket;
+import java.io.OutputStream;
 import java.util.Base64;
 
 
@@ -61,21 +61,32 @@ public class SecondApplication extends JFrame {
     public void updateFields(String publicKey, String message, String signature) {
         publicKeyField.setText(publicKey);
         messageField.setText(message);
-        signatureField.setText(signature);
+
+        // Decode Base64 signature back to byte array
+        byte[] signatureBytes = Base64.getDecoder().decode(signature);
+        signatureField.setText(Base64.getEncoder().encodeToString(signatureBytes)); // Display as Base64 string
     }
+
+
 
     private void sendData() {
         try (Socket socket = new Socket("localhost", 8081);
-             PrintWriter out = new PrintWriter(socket.getOutputStream(), true)) {
-            out.println(publicKeyField.getText().trim());
-            out.println(messageField.getText().trim());
-            String signatureBase64 = Base64.getEncoder().encodeToString(signatureField.getText().trim().getBytes());
-            out.println(signatureBase64);
+             OutputStream out = socket.getOutputStream()) {
+            out.write(publicKeyField.getText().getBytes());
+            out.write("\n".getBytes());
+            out.write(messageField.getText().getBytes());
+            out.write("\n".getBytes());
+
+            // Send signature data as Base64 encoded string
+            out.write(signatureField.getText().getBytes());
+            out.flush();
         } catch (IOException e) {
             System.out.println("Error sending data: " + e.getMessage());
             e.printStackTrace();
         }
     }
+
+
 
     public static void main(String[] args) {
         new SecondApplication();

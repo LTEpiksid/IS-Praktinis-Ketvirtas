@@ -2,6 +2,7 @@ package First;
 
 import java.math.BigInteger;
 import java.security.SecureRandom;
+import java.util.Base64;
 
 public class RSA {
     private BigInteger p;
@@ -32,12 +33,9 @@ public class RSA {
 
 
     public static String bytesToString(byte[] encrypted) {
-        StringBuilder sb = new StringBuilder();
-        for (byte b : encrypted) {
-            sb.append(b);
-        }
-        return sb.toString();
+        return Base64.getEncoder().encodeToString(encrypted);
     }
+
 
     public byte[] sign(byte[] message) {
         return (new BigInteger(message)).modPow(d, n).toByteArray();
